@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"sync"
 )
 
 type Generator struct {
@@ -132,6 +133,79 @@ func (g *Generator) getWords(startWord string, size int) []string {
 	}
 
 	return words
+}
+
+func (g *Generator) GreedyMultGo(size, min, max, lim int) (*GenResults, error) {
+	if len(g.dict) < size {
+		return nil, fmt.Errorf("dict too small")
+	}
+
+	if !g.sorted {
+		g.sortDict()
+	}
+
+	result := g.dict[:size]
+	cost, err := computeWeights(result)
+	if err != nil {
+		return nil, err
+	}
+
+	ch := make(chan []string, 10)
+
+	wg0 := sync.WaitGroup{}
+	wg0.Add(1)
+
+	go func() {
+		defer wg0.Done()
+		for current := range ch {
+			if ok, err := better(current, result, min, max); err != nil {
+				log.Println(err)
+				return
+			} else if ok {
+				result = current
+			}
+		}
+
+	}()
+
+	wg := sync.WaitGroup{}
+
+	for _, word := range g.dict {
+		w, err := weight(word)
+		if err != nil {
+			return nil, err
+		}
+
+		if w >= cost {
+			continue
+		}
+
+		wg.Add(1)
+
+		go func(word string) {
+			defer wg.Done()
+			candidates := g.getWordsCandidates(nil, nil, word, size, lim)
+			if len(candidates) > 0 {
+				tmpRes := candidates[0]
+				for _, current := range candidates[1:] {
+					if ok, err := better(current, tmpRes, min, max); err != nil {
+						log.Println(err)
+						return
+					} else if ok {
+						tmpRes = getCopy(current)
+					}
+				}
+				ch <- tmpRes
+			}
+		}(word)
+
+	}
+
+	wg.Wait()
+	close(ch)
+	wg0.Wait()
+
+	return NewGenResults(result)
 }
 
 func startWith(word string, asciiLetters []byte) bool {
