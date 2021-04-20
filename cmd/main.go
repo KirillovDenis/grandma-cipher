@@ -32,7 +32,7 @@ func getDict(filename string, minWordSize int) ([]string, error) {
 		return nil, err
 	}
 
-	dict := make([]string, 0, 70000)
+	dict := make([]string, 0)
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
