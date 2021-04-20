@@ -5,6 +5,7 @@ import (
 	"grandma-cipher/cmd/generator"
 	"log"
 	"os"
+	"time"
 )
 
 func main() {
@@ -13,13 +14,15 @@ func main() {
 		log.Fatal(err)
 	}
 
+	start := time.Now()
 	gen := generator.NewGenerator(dict)
 
-	results, err := gen.GreedyMult(4, 20, 24, 3)
+	results, err := gen.GreedyMult(4, 20, 24, 9)
+	elapsed := time.Since(start)
 	if err != nil {
 		log.Println(err)
 	} else {
-		log.Printf("%#v\n", results)
+		log.Printf("Elapsed: %v\n %#v\n", elapsed, results)
 	}
 }
 

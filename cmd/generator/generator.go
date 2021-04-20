@@ -83,8 +83,21 @@ func (g *Generator) GreedyMult(size, min, max, lim int) (*GenResults, error) {
 	}
 
 	result := g.dict[:size]
+	cost, err := computeWeights(result)
+	if err != nil {
+		return nil, err
+	}
 
 	for _, word := range g.dict {
+		w, err := weight(word)
+		if err != nil {
+			return nil, err
+		}
+
+		if w >= cost {
+			continue
+		}
+
 		candidates := g.getWordsCandidates(nil, nil, word, size, lim)
 		for _, current := range candidates {
 			if ok, err := better(current, result, min, max); err != nil {
