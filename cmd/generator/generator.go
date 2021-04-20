@@ -208,6 +208,75 @@ func (g *Generator) GreedyMultGo(size, min, max, lim int) (*GenResults, error) {
 	return NewGenResults(result)
 }
 
+func (g *Generator) GreedyMultGoSpeed(size, min, max, lim int) (*GenResults, error) {
+	if len(g.dict) < size {
+		return nil, fmt.Errorf("dict too small")
+	}
+
+	if !g.sorted {
+		g.sortDict()
+	}
+
+	result := g.dict[:size]
+	cost := 1000
+	var mu sync.RWMutex
+	ch := make(chan []string, 10)
+
+	wgRes := sync.WaitGroup{}
+	wgRes.Add(1)
+
+	go func() {
+		defer wgRes.Done()
+		for current := range ch {
+			if ok, w, err := betterWeight(current, result, min, max); err != nil {
+				log.Println(err)
+				return
+			} else if ok {
+				result = current
+
+				mu.Lock()
+				cost = w
+				mu.Unlock()
+			}
+		}
+
+	}()
+
+	wg := sync.WaitGroup{}
+
+	for _, word := range g.dict {
+		w, err := weight(word)
+		if err != nil {
+			return nil, err
+		}
+
+		var currentCost int
+		mu.RLock()
+		currentCost = cost
+		mu.RUnlock()
+		if w >= currentCost || len(word) >= max {
+			continue
+		}
+
+		wg.Add(1)
+		go func(word string) {
+			defer wg.Done()
+			candidates := &candidates{cost: currentCost}
+			g.getWordsCandidates2(candidates, nil, word, size, lim, min, max)
+			if len(candidates.best) > 0 {
+				ch <- candidates.best
+			}
+		}(word)
+
+	}
+
+	wg.Wait()
+	close(ch)
+	wgRes.Wait()
+
+	return NewGenResults(result)
+}
+
 func startWith(word string, asciiLetters []byte) bool {
 	for _, letter := range asciiLetters {
 		if letter == word[0] {
@@ -239,6 +308,60 @@ func (g *Generator) getWordsCandidates(wordsCandidates [][]string, words []strin
 	}
 
 	return wordsCandidates
+}
+
+type candidates struct {
+	best []string
+	cost int
+}
+
+func (c *candidates) add(words []string, w, min, max int) {
+	if c.best == nil {
+		c.best = getCopy(words)
+		c.cost = w
+		return
+	}
+
+	length := wordsLength(words)
+	if length < min || length > max {
+		return
+	}
+	if w < c.cost {
+		c.best = getCopy(words)
+		c.cost = w
+	}
+}
+
+func (g *Generator) getWordsCandidates2(wordsCandidates *candidates, words []string, lastWord string, size, lim, min, max int) {
+	if len(words) >= size {
+		return
+	}
+
+	words = append(words, lastWord)
+	w, err := computeWeights(words)
+	if err != nil {
+		log.Printf("getWordsCandidates2 : %v", err)
+		return
+	}
+	if w >= wordsCandidates.cost || wordsLength(words) > max {
+		return
+	}
+
+	if len(words) == size {
+		wordsCandidates.add(words, w, min, max)
+		return
+	}
+
+	nearestWords := getNearestWords(g.dict, lastWord)
+	if len(nearestWords) > lim {
+		nearestWords = nearestWords[:lim]
+	}
+
+	for _, word := range nearestWords {
+		if !contains(words, word) {
+			g.getWordsCandidates2(wordsCandidates, words, word, size, lim, min, max)
+		}
+	}
 }
 
 func getNearestWords(dict []string, lastWord string) []string {

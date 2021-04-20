@@ -79,6 +79,32 @@ func better(first, second []string, min, max int) (bool, error) {
 	return weight1 < weight2, nil
 }
 
+func betterWeight(first, second []string, min, max int) (bool, int, error) {
+	weight1, err := computeWeights(first)
+	if err != nil {
+		return false, -1, err
+	}
+	length1 := wordsLength(first)
+	if length1 < min || length1 > max {
+		return false, -1, nil
+	}
+
+	weight2, err := computeWeights(second)
+	if err != nil {
+		return false, -1, err
+	}
+	length2 := wordsLength(second)
+	if length2 < min || length2 > max {
+		return true, weight1, nil
+	}
+
+	if weight1 < weight2 {
+		return true, weight1, nil
+	}
+
+	return false, weight2, nil
+}
+
 func computeWeights(array []string) (int, error) {
 	if len(array) == 0 {
 		return -1, fmt.Errorf("array must be not empty")

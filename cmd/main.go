@@ -17,7 +17,7 @@ func main() {
 	start := time.Now()
 	gen := generator.NewGenerator(dict)
 
-	results, err := gen.GreedyMult(4, 20, 24, 9)
+	results, err := gen.GreedyMultGoSpeed(4, 20, 24, 9)
 	elapsed := time.Since(start)
 	if err != nil {
 		log.Println(err)
