@@ -5,25 +5,23 @@ import (
 	"grandma-cipher/cmd/generator"
 	"log"
 	"os"
+	"strings"
 	"time"
 )
 
 func main() {
-	dict, err := getDict("cmd/usa.txt", 3)
+	minWordLength := 3
+	dict, err := getDict("cmd/usa.txt", minWordLength)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	start := time.Now()
 	gen := generator.NewGenerator(dict)
-
-	results, err := gen.GreedyMultGoSpeed(4, 20, 24, 9)
+	result := gen.Recursive(4, 20, 24, minWordLength)
 	elapsed := time.Since(start)
-	if err != nil {
-		log.Println(err)
-	} else {
-		log.Printf("Elapsed: %v\n %#v\n", elapsed, results)
-	}
+
+	log.Printf("Elapsed: %v\n %#v\n", elapsed, result)
 }
 
 func getDict(filename string, minWordSize int) ([]string, error) {
@@ -37,8 +35,8 @@ func getDict(filename string, minWordSize int) ([]string, error) {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		txt := scanner.Text()
-		if len(txt) >= minWordSize {
-			dict = append(dict, txt)
+		if len(txt) >= minWordSize && isASCII(txt) {
+			dict = append(dict, strings.ToLower(txt))
 		}
 	}
 
@@ -47,4 +45,13 @@ func getDict(filename string, minWordSize int) ([]string, error) {
 	}
 
 	return dict, file.Close()
+}
+
+func isASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] < 65 || (s[i] > 90 && s[i] < 97) || s[i] > 122 {
+			return false
+		}
+	}
+	return true
 }

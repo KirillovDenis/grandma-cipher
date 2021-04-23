@@ -1,15 +1,19 @@
 package generator
 
 import (
-	"fmt"
-	"log"
 	"sort"
-	"sync"
 )
 
+type wordCost struct {
+	cost int
+	word string
+}
+
 type Generator struct {
-	dict   []string
-	sorted bool
+	dict      []wordCost
+	distances map[spacing]int
+	bestCost  int
+	bestWords []string
 }
 
 type GenResults struct {
@@ -19,365 +23,97 @@ type GenResults struct {
 }
 
 func NewGenerator(dict []string) *Generator {
-	return &Generator{dict, false}
-}
+	preparedDict := make([]wordCost, len(dict))
 
-func NewGenResults(words []string) (*GenResults, error) {
-	weight, err := computeWeights(words)
-	if err != nil {
-		return nil, err
+	for i := range dict {
+		preparedDict[i] = wordCost{weight(dict[i]), dict[i]}
 	}
 
+	sort.Slice(preparedDict, func(i, j int) bool {
+		return preparedDict[i].cost < preparedDict[j].cost
+	})
+
+	return &Generator{dict: preparedDict, distances: prepare(), bestCost: 10000}
+}
+
+func NewGenResults(words []string) *GenResults {
 	return &GenResults{
 		Words:  words,
-		Length: wordsLength(words),
-		Weight: weight,
-	}, nil
+		Length: computeLength(words),
+		Weight: computeWeights(words),
+	}
 }
 
-func (g *Generator) sortDict() {
-	sort.Slice(g.dict, func(i, j int) bool {
-		w1, err := weight(g.dict[i])
-		if err != nil {
-			log.Println(err)
-		}
-		w2, err := weight(g.dict[j])
-		if err != nil {
-			log.Println(err)
-		}
+func prepare() map[spacing]int {
+	distances := make(map[spacing]int)
 
-		return w1 < w2
-	})
-	g.sorted = true
-}
-
-func (g *Generator) Greedy(size, min, max int) (*GenResults, error) {
-	if len(g.dict) < size {
-		return nil, fmt.Errorf("dict too small")
-	}
-
-	if !g.sorted {
-		g.sortDict()
-	}
-
-	result := g.dict[:size]
-
-	for _, word := range g.dict {
-		current := g.getWords(word, size)
-		if ok, err := better(current, result, min, max); err != nil {
-			return nil, err
-		} else if ok {
-			result = getCopy(current)
-		}
-	}
-
-	return NewGenResults(result)
-}
-
-func (g *Generator) GreedyMult(size, min, max, lim int) (*GenResults, error) {
-	if len(g.dict) < size {
-		return nil, fmt.Errorf("dict too small")
-	}
-
-	if !g.sorted {
-		g.sortDict()
-	}
-
-	result := g.dict[:size]
-	cost, err := computeWeights(result)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, word := range g.dict {
-		w, err := weight(word)
-		if err != nil {
-			return nil, err
-		}
-
-		if w >= cost {
-			continue
-		}
-
-		candidates := g.getWordsCandidates(nil, nil, word, size, lim)
-		for _, current := range candidates {
-			if ok, err := better(current, result, min, max); err != nil {
-				return nil, err
-			} else if ok {
-				result = getCopy(current)
-			}
-		}
-	}
-
-	return NewGenResults(result)
-}
-
-func (g *Generator) getWords(startWord string, size int) []string {
-	words := []string{startWord}
-	for len(words) < size {
-		found := false
-		lastWord := words[len(words)-1]
-		nearestLetters := getNearest(lastWord)
-
-		for _, word := range g.dict {
-			if startWith(word, nearestLetters) && !contains(words, word) {
-				found = true
-				words = append(words, word)
-				break
-			}
-		}
-
-		if !found {
-			words = append(words, g.dict[0])
-		}
-	}
-
-	return words
-}
-
-func (g *Generator) GreedyMultGo(size, min, max, lim int) (*GenResults, error) {
-	if len(g.dict) < size {
-		return nil, fmt.Errorf("dict too small")
-	}
-
-	if !g.sorted {
-		g.sortDict()
-	}
-
-	result := g.dict[:size]
-	cost, err := computeWeights(result)
-	if err != nil {
-		return nil, err
-	}
-
-	ch := make(chan []string, 10)
-
-	wg0 := sync.WaitGroup{}
-	wg0.Add(1)
-
-	go func() {
-		defer wg0.Done()
-		for current := range ch {
-			if ok, err := better(current, result, min, max); err != nil {
-				log.Println(err)
-				return
-			} else if ok {
-				result = current
-			}
-		}
-
-	}()
-
-	wg := sync.WaitGroup{}
-
-	for _, word := range g.dict {
-		w, err := weight(word)
-		if err != nil {
-			return nil, err
-		}
-
-		if w >= cost {
-			continue
-		}
-
-		wg.Add(1)
-
-		go func(word string) {
-			defer wg.Done()
-			candidates := g.getWordsCandidates(nil, nil, word, size, lim)
-			if len(candidates) > 0 {
-				tmpRes := candidates[0]
-				for _, current := range candidates[1:] {
-					if ok, err := better(current, tmpRes, min, max); err != nil {
-						log.Println(err)
-						return
-					} else if ok {
-						tmpRes = getCopy(current)
-					}
+	for i := 0; i < 3; i++ {
+		for j := 0; j < len(keyboard[i]); j++ {
+			ch := keyboard[i][j]
+			for ii := 0; ii < 3; ii++ {
+				for jj := 0; jj < len(keyboard[ii]); jj++ {
+					ch2 := keyboard[ii][jj]
+					distances[spacing{ch, ch2}] = distanceByte(ch, ch2)
 				}
-				ch <- tmpRes
 			}
-		}(word)
-
+		}
 	}
 
-	wg.Wait()
-	close(ch)
-	wg0.Wait()
-
-	return NewGenResults(result)
+	return distances
 }
 
-func (g *Generator) GreedyMultGoSpeed(size, min, max, lim int) (*GenResults, error) {
+func (g *Generator) Recursive(size, min, max, minWordLength int) *GenResults {
 	if len(g.dict) < size {
-		return nil, fmt.Errorf("dict too small")
+		return nil
 	}
 
-	if !g.sorted {
-		g.sortDict()
-	}
-
-	result := g.dict[:size]
-	cost := 1000
-	var mu sync.RWMutex
-	ch := make(chan []string, 10)
-
-	wgRes := sync.WaitGroup{}
-	wgRes.Add(1)
-
-	go func() {
-		defer wgRes.Done()
-		for current := range ch {
-			if ok, w, err := betterWeight(current, result, min, max); err != nil {
-				log.Println(err)
-				return
-			} else if ok {
-				result = current
-
-				mu.Lock()
-				cost = w
-				mu.Unlock()
-			}
-		}
-
-	}()
-
-	wg := sync.WaitGroup{}
-
+	maxWordLength := max - (size-1)*minWordLength
 	for _, word := range g.dict {
-		w, err := weight(word)
-		if err != nil {
-			return nil, err
-		}
-
-		var currentCost int
-		mu.RLock()
-		currentCost = cost
-		mu.RUnlock()
-		if w >= currentCost || len(word) >= max {
-			continue
-		}
-
-		wg.Add(1)
-		go func(word string) {
-			defer wg.Done()
-			candidates := &candidates{cost: currentCost}
-			g.getWordsCandidates2(candidates, nil, word, size, lim, min, max)
-			if len(candidates.best) > 0 {
-				ch <- candidates.best
-			}
-		}(word)
-
-	}
-
-	wg.Wait()
-	close(ch)
-	wgRes.Wait()
-
-	return NewGenResults(result)
-}
-
-func startWith(word string, asciiLetters []byte) bool {
-	for _, letter := range asciiLetters {
-		if letter == word[0] {
-			return true
-		}
-	}
-	return false
-}
-
-func (g *Generator) getWordsCandidates(wordsCandidates [][]string, words []string, lastWord string, size, lim int) [][]string {
-	if len(words) >= size {
-		return wordsCandidates
-	}
-
-	words = append(words, lastWord)
-	if len(words) == size {
-		return append(wordsCandidates, getCopy(words))
-	}
-
-	nearestWords := getNearestWords(g.dict, lastWord)
-	if len(nearestWords) > lim {
-		nearestWords = nearestWords[:lim]
-	}
-
-	for _, word := range nearestWords {
-		if !contains(words, word) {
-			wordsCandidates = g.getWordsCandidates(wordsCandidates, words, word, size, lim)
-		}
-	}
-
-	return wordsCandidates
-}
-
-type candidates struct {
-	best []string
-	cost int
-}
-
-func (c *candidates) add(words []string, w, min, max int) {
-	if c.best == nil {
-		c.best = getCopy(words)
-		c.cost = w
-		return
-	}
-
-	length := wordsLength(words)
-	if length < min || length > max {
-		return
-	}
-	if w < c.cost {
-		c.best = getCopy(words)
-		c.cost = w
-	}
-}
-
-func (g *Generator) getWordsCandidates2(wordsCandidates *candidates, words []string, lastWord string, size, lim, min, max int) {
-	if len(words) >= size {
-		return
-	}
-
-	words = append(words, lastWord)
-	w, err := computeWeights(words)
-	if err != nil {
-		log.Printf("getWordsCandidates2 : %v", err)
-		return
-	}
-	if w >= wordsCandidates.cost || wordsLength(words) > max {
-		return
-	}
-
-	if len(words) == size {
-		wordsCandidates.add(words, w, min, max)
-		return
-	}
-
-	nearestWords := getNearestWords(g.dict, lastWord)
-	if len(nearestWords) > lim {
-		nearestWords = nearestWords[:lim]
-	}
-
-	for _, word := range nearestWords {
-		if !contains(words, word) {
-			g.getWordsCandidates2(wordsCandidates, words, word, size, lim, min, max)
-		}
-	}
-}
-
-func getNearestWords(dict []string, lastWord string) []string {
-	var results []string
-	nearest := getNearest(lastWord)
-	for _, word := range dict {
-		if len(nearest) == 0 {
+		curCost := word.cost
+		curLength := len(word.word)
+		if curCost >= g.bestCost {
 			break
 		}
-		if index := getIndex(nearest, word[0]); index != -1 {
-			results = append(results, word)
-			nearest = append(nearest[:index], nearest[index+1:]...)
+		if curLength > maxWordLength {
+			continue
 		}
+
+		g.find([]string{word.word}, maxWordLength, curCost, curLength, min, max, size)
 	}
 
-	return results
+	return NewGenResults(g.bestWords)
+}
+
+func (g *Generator) find(words []string, maxWordLength, cost, length, min, max, size int) {
+	if len(words) == size {
+		if length >= min && length <= max {
+			g.bestCost = cost
+			g.bestWords = words
+		}
+		return
+	}
+
+	lastWord := words[len(words)-1]
+	for _, word := range g.dict {
+		newCost := cost + word.cost
+		if newCost >= g.bestCost {
+			break
+		}
+		wordLen := len(word.word)
+		if wordLen > maxWordLength {
+			continue
+		}
+		newCost += g.distances[spacing{lastWord[len(lastWord)-1], word.word[0]}]
+		if newCost >= g.bestCost {
+			continue
+		}
+		newLength := length + wordLen
+		if newLength > max || contains(words, word.word) {
+			continue
+		}
+
+		g.find(append(words, word.word), maxWordLength, newCost, newLength, min, max, size)
+	}
 }
 
 func contains(array []string, elem string) bool {
@@ -388,14 +124,4 @@ func contains(array []string, elem string) bool {
 	}
 
 	return false
-}
-
-func getIndex(array []byte, elem byte) int {
-	for i, element := range array {
-		if elem == element {
-			return i
-		}
-	}
-
-	return -1
 }

@@ -21,8 +21,7 @@ func TestWordWeight(t *testing.T) {
 		{word: "error", weight: 11},
 	} {
 		t.Run(tc.word, func(t *testing.T) {
-			actual, err := weight(tc.word)
-			assert.NoError(t, err)
+			actual := weight(tc.word)
 			assert.Equal(t, tc.weight, actual)
 		})
 	}
@@ -36,8 +35,7 @@ func TestWordsWeight(t *testing.T) {
 		{words: []string{"freed", "freed", "freed", "freed"}, weight: 15},
 	} {
 		t.Run(fmt.Sprintf("%v", tc.words), func(t *testing.T) {
-			actual, err := computeWeights(tc.words)
-			assert.NoError(t, err)
+			actual := computeWeights(tc.words)
 			assert.Equal(t, tc.weight, actual)
 		})
 	}
@@ -53,8 +51,7 @@ func TestComputeDistance(t *testing.T) {
 		{first: "loop", second: "act", distance: 10},
 	} {
 		t.Run(fmt.Sprintf("distance %s->%s", tc.first, tc.second), func(t *testing.T) {
-			actual, err := distance(tc.first, tc.second)
-			assert.NoError(t, err)
+			actual := distance(tc.first, tc.second)
 			assert.Equal(t, tc.distance, actual)
 		})
 	}
