@@ -1,10 +1,7 @@
 package generator
 
-type spacing struct {
-	chEnd, chStart byte
-}
-
 var keyboard = [3]string{"qwertyuiop", "asdfghjkl", "zxcvbnm"}
+var alphabet = "abcdefghijklmnopqrstuvwxyz"
 
 func computeWeights(array []string) int {
 	if len(array) == 0 {
