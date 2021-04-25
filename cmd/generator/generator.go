@@ -160,7 +160,7 @@ func (g *Generator) Recursive(size, min, max, minWordLength int) *GenResults {
 	if len(g.dict) < size {
 		return nil
 	}
-
+	g.bestWords = make([]int, size)
 	maxWordLength := max - (size-1)*minWordLength
 	for i, word := range g.dict {
 		curCost := word.cost
@@ -182,7 +182,7 @@ func (g *Generator) find(words []int, maxWordLength, cost, length, min, max, siz
 	if len(words) == size {
 		if length >= min && length <= max {
 			g.bestCost = cost
-			g.bestWords = words
+			copy(g.bestWords, words)
 		}
 		return
 	}
