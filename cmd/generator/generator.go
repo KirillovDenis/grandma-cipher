@@ -5,8 +5,9 @@ import (
 )
 
 type wordCost struct {
-	cost int
-	word string
+	cost      int
+	word      string
+	firstByte byte
 }
 
 type Generator struct {
@@ -26,7 +27,8 @@ func NewGenerator(dict []string) *Generator {
 	preparedDict := make([]wordCost, len(dict))
 
 	for i := range dict {
-		preparedDict[i] = wordCost{weight(dict[i]), dict[i]}
+		word := dict[i]
+		preparedDict[i] = wordCost{weight(word), word, word[0] - 'a'}
 	}
 
 	sort.Slice(preparedDict, func(i, j int) bool {
@@ -108,7 +110,7 @@ func (g *Generator) NoRecursive(size, min, max, minWordLength int) *GenResults {
 		words := []int{ii}
 		for len(words) > 0 {
 			lastWord := g.dict[words[len(words)-1]].word
-			lastByte := lastWord[len(lastWord)-1]
+			lastByte := lastWord[len(lastWord)-1] - 'a'
 			seenBound := seen[len(words)]
 			found := false
 			for i, word := range g.dict {
@@ -119,7 +121,7 @@ func (g *Generator) NoRecursive(size, min, max, minWordLength int) *GenResults {
 				if i <= seenBound || len(word.word) > maxWordLength {
 					continue
 				}
-				newCost += g.distances[lastByte-'a'][word.word[0]-'a']
+				newCost += g.distances[lastByte][word.firstByte]
 				if newCost >= g.bestCost {
 					continue
 				}
@@ -186,7 +188,7 @@ func (g *Generator) find(words []int, maxWordLength, cost, length, min, max, siz
 	}
 
 	lastWord := g.dict[words[len(words)-1]].word
-	lastByte := lastWord[len(lastWord)-1]
+	lastByte := lastWord[len(lastWord)-1] - 'a'
 	for i, word := range g.dict {
 		newCost := cost + word.cost
 		if newCost >= g.bestCost {
@@ -196,7 +198,7 @@ func (g *Generator) find(words []int, maxWordLength, cost, length, min, max, siz
 		if wordLen > maxWordLength {
 			continue
 		}
-		newCost += g.distances[lastByte-'a'][word.word[0]-'a']
+		newCost += g.distances[lastByte][word.firstByte]
 		if newCost >= g.bestCost {
 			continue
 		}
