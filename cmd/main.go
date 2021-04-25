@@ -21,7 +21,7 @@ func main() {
 	result := gen.Recursive(4, 20, 24, minWordLength)
 	elapsed := time.Since(start)
 
-	log.Printf("Elapsed: %v\n %#v\n", elapsed, result)
+	log.Printf("Elapsed: %v\n %v\n", elapsed, result)
 }
 
 func getDict(filename string, minWordSize int) ([]string, error) {

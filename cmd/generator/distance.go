@@ -3,31 +3,6 @@ package generator
 var keyboard = [3]string{"qwertyuiop", "asdfghjkl", "zxcvbnm"}
 var alphabet = "abcdefghijklmnopqrstuvwxyz"
 
-func computeWeights(array []string) int {
-	if len(array) == 0 {
-		return 0
-	}
-
-	last := array[0]
-	sum := weight(last)
-
-	for i := 1; i < len(array); i++ {
-		sum += weight(array[i])
-		sum += distance(last, array[i])
-		last = array[i]
-	}
-
-	return sum
-}
-
-func computeLength(arr []string) int {
-	sumLetters := 0
-	for _, word := range arr {
-		sumLetters += len(word)
-	}
-	return sumLetters
-}
-
 func weight(word string) int {
 	sum := 0
 	last := word[0]
@@ -37,17 +12,6 @@ func weight(word string) int {
 	}
 
 	return sum
-}
-
-func distance(first, second string) int {
-	if len(first) == 0 || len(second) == 0 {
-		return 0
-	}
-
-	endByte := first[len(first)-1]
-	startByte := second[0]
-
-	return distanceByte(endByte, startByte)
 }
 
 func distanceByte(first, second byte) int {
